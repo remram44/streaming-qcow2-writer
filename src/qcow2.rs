@@ -29,7 +29,6 @@ impl StreamingQcow2Writer {
             // Compute the range of clusters containing those bytes
             let mut from_cluster = range.start / CLUSTER_SIZE;
             let to_cluster = divide_and_round_up(range.end, CLUSTER_SIZE);
-            eprintln!("range={:?} clusters={}..{}", range, from_cluster, to_cluster);
 
             if let Some(last_cluster) = last_cluster {
                 if from_cluster < last_cluster {
@@ -103,8 +102,6 @@ impl StreamingQcow2Writer {
     }
 
     pub fn write_header<W: Write>(&self, mut writer: W) -> std::io::Result<()> {
-        eprintln!("writing header at 0");
-
         // Magic
         writer.write_all(b"QFI\xFB")?;
 
@@ -147,10 +144,6 @@ impl StreamingQcow2Writer {
 
         writer.write_all(&[0u8; CLUSTER_SIZE as usize - 72])?;
 
-        // TODO: DEBUG
-        writer.flush()?;
-        assert_eq!(std::fs::metadata("test.qcow2").unwrap().len(), CLUSTER_SIZE);
-
         self.write_refcount_table(&mut writer)?;
 
         self.write_mapping_table(&mut writer)?;
@@ -159,8 +152,6 @@ impl StreamingQcow2Writer {
     }
 
     fn write_refcount_table<W: Write>(&self, mut writer: W) -> std::io::Result<()> {
-        eprintln!("writing refcount table at 1");
-
         let total_clusters = self.first_data_cluster + self.data_clusters.len() as u64;
         let refcount_blocks = divide_and_round_up(total_clusters * 2, CLUSTER_SIZE);
 
@@ -180,10 +171,6 @@ impl StreamingQcow2Writer {
             }
         }
 
-        // TODO: DEBUG
-        writer.flush()?;
-        assert_eq!(std::fs::metadata("test.qcow2").unwrap().len(), (1 + self.refcount_table_clusters as u64) * CLUSTER_SIZE);
-
         // Blocks
         {
             for _ in 0..total_clusters {
@@ -196,12 +183,6 @@ impl StreamingQcow2Writer {
             }
         }
 
-        // TODO: DEBUG
-        writer.flush()?;
-        assert_eq!(std::fs::metadata("test.qcow2").unwrap().len(), self.l1_offset);
-
-        eprintln!("wrote refcount blocks from {} to {}", 1 + self.refcount_table_clusters, self.l1_offset / CLUSTER_SIZE - 1);
-
         Ok(())
     }
 
@@ -211,8 +192,6 @@ impl StreamingQcow2Writer {
         for (host, guest) in self.data_clusters.iter().enumerate() {
             mapping.insert(guest, host as u64 + self.first_data_cluster);
         }
-
-        eprintln!("writing L1 table at {}", self.l1_offset / CLUSTER_SIZE);
 
         // L1 table
         {
@@ -232,10 +211,6 @@ impl StreamingQcow2Writer {
                 writer.write_u64::<BigEndian>(0)?;
             }
         }
-
-        // TODO: DEBUG
-        writer.flush()?;
-        assert_eq!(std::fs::metadata("test.qcow2").unwrap().len(), self.l1_offset + self.l1_clusters as u64 * CLUSTER_SIZE);
 
         // L2 table
         {
@@ -262,22 +237,12 @@ impl StreamingQcow2Writer {
             }
         }
 
-        // TODO: DEBUG
-        writer.flush()?;
-        assert_eq!(std::fs::metadata("test.qcow2").unwrap().len(), self.first_data_cluster * CLUSTER_SIZE);
-
-        eprintln!("wrote L2 tables from {} to {}", self.l1_offset / CLUSTER_SIZE + self.l1_clusters as u64, self.first_data_cluster - 1);
-
         Ok(())
     }
 
     pub fn copy_data<R: Read + Seek, W: Write>(&self, mut reader: R, mut writer: W) -> std::io::Result<()> {
         let mut written = self.first_data_cluster * CLUSTER_SIZE;
-        let mut i = 0;
         for cluster in &self.data_clusters {
-            eprintln!("copy cluster {} at {}", cluster, self.first_data_cluster + i);
-            i += 1;
-
             reader.seek(SeekFrom::Start(cluster * CLUSTER_SIZE))?;
             let mut buffer = [0u8; CLUSTER_SIZE as usize];
             reader.read(&mut buffer)?;
@@ -289,15 +254,7 @@ impl StreamingQcow2Writer {
                 eprintln!("{}/{} bytes written", written + CLUSTER_SIZE, self.file_size());
             }
             written += CLUSTER_SIZE;
-
-            // TODO: DEBUG
-            writer.flush()?;
-            assert_eq!(std::fs::metadata("test.qcow2").unwrap().len(), (self.first_data_cluster + i) * CLUSTER_SIZE);
         }
-
-        // TODO: DEBUG
-        writer.flush()?;
-        assert_eq!(std::fs::metadata("test.qcow2").unwrap().len(), (self.first_data_cluster + 5) * CLUSTER_SIZE);
 
         Ok(())
     }
