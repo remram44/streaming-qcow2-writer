@@ -7,3 +7,6 @@ edition = "2021"
 byteorder = "1.4"
 serde = { version = "*", features = ["derive"] }
 serde_json = "*"
+
+[target.'cfg(unix)'.dependencies]
+nix = "*"

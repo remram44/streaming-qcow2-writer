@@ -7,6 +7,45 @@ use qcow2::StreamingQcow2Writer;
 
 const USAGE: &'static str = "Usage: streaming-qcow2-writer input.img [layout.json] > output.qcow2";
 
+#[cfg(unix)]
+const BLKGETSIZE64_CODE: u8 = 0x12; // Defined in linux/fs.h
+#[cfg(unix)]
+const BLKGETSIZE64_SEQ: u8 = 114;
+#[cfg(unix)]
+nix::ioctl_read!(ioctl_blkgetsize64, BLKGETSIZE64_CODE, BLKGETSIZE64_SEQ, u64);
+
+fn get_file_size(file: &std::fs::File) -> std::io::Result<u64> {
+    let metadata = file.metadata()?;
+
+    let file_type = metadata.file_type();
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::FileTypeExt;
+        use std::os::unix::io::AsRawFd;
+
+        if file_type.is_block_device() {
+            let fd = file.as_raw_fd();
+            let mut cap = 0u64;
+            let cap_ptr = &mut cap as *mut u64;
+            unsafe {
+                ioctl_blkgetsize64(fd, cap_ptr).unwrap();
+            }
+
+            return Ok(cap);
+        }
+    }
+
+    if !metadata.file_type().is_file() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "input is not a file",
+        ));
+    }
+
+    Ok(metadata.len())
+}
+
 fn main() {
     // Read command-line arguments
     let mut args = std::env::args_os();
@@ -28,7 +67,7 @@ fn main() {
 
     // Open input
     let (input, input_size) = match std::fs::File::open(input)
-        .and_then(|f| f.metadata().map(|m| (f, m.len())))
+        .and_then(|f| get_file_size(&f).map(|s| (f, s)))
     {
         Ok(o) => o,
         Err(e) => {
