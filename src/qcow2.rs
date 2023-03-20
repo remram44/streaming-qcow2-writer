@@ -97,8 +97,12 @@ impl StreamingQcow2Writer {
         }
     }
 
+    fn total_clusters(&self) -> u64 {
+        self.first_data_cluster + self.data_clusters.len() as u64
+    }
+
     pub fn file_size(&self) -> u64 {
-        CLUSTER_SIZE * (self.first_data_cluster + self.data_clusters.len() as u64)
+        CLUSTER_SIZE * self.total_clusters()
     }
 
     pub fn write_header<W: Write>(&self, mut writer: W) -> std::io::Result<()> {
@@ -152,8 +156,7 @@ impl StreamingQcow2Writer {
     }
 
     fn write_refcount_table<W: Write>(&self, mut writer: W) -> std::io::Result<()> {
-        let total_clusters = self.first_data_cluster + self.data_clusters.len() as u64;
-        let refcount_blocks = divide_and_round_up(total_clusters * 2, CLUSTER_SIZE);
+        let refcount_blocks = divide_and_round_up(self.total_clusters() * 2, CLUSTER_SIZE);
 
         // Table
         {
@@ -173,11 +176,11 @@ impl StreamingQcow2Writer {
 
         // Blocks
         {
-            for _ in 0..total_clusters {
+            for _ in 0..self.total_clusters() {
                 writer.write_u16::<BigEndian>(1)?;
             }
             let block_entries_per_cluster = CLUSTER_SIZE / 2;
-            let last_cluster_entries = total_clusters % block_entries_per_cluster;
+            let last_cluster_entries = self.total_clusters() % block_entries_per_cluster;
             for _ in last_cluster_entries..block_entries_per_cluster {
                 writer.write_u16::<BigEndian>(0)?;
             }
@@ -214,8 +217,7 @@ impl StreamingQcow2Writer {
 
         // L2 table
         {
-            let total_clusters = self.first_data_cluster + self.data_clusters.len() as u64;
-            for guest_cluster in 0..total_clusters {
+            for guest_cluster in 0..self.total_clusters() {
                 let l2_entry = match mapping.get(&guest_cluster) {
                     None => {
                         0
@@ -231,7 +233,7 @@ impl StreamingQcow2Writer {
             }
 
             let l2_entries_per_cluster = CLUSTER_SIZE / 8;
-            let last_cluster_entries = total_clusters % l2_entries_per_cluster;
+            let last_cluster_entries = self.total_clusters() % l2_entries_per_cluster;
             for _ in last_cluster_entries..l2_entries_per_cluster {
                 writer.write_u64::<BigEndian>(0)?;
             }
