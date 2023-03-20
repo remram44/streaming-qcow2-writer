@@ -175,8 +175,10 @@ impl StreamingQcow2Writer {
             }
             let refcount_entries_per_cluster = CLUSTER_SIZE / 8;
             let last_cluster_entries = refcount_blocks as u64 % refcount_entries_per_cluster;
-            for _ in last_cluster_entries..refcount_entries_per_cluster {
-                writer.write_u64::<BigEndian>(0)?;
+            if last_cluster_entries > 0 {
+                for _ in last_cluster_entries..refcount_entries_per_cluster {
+                    writer.write_u64::<BigEndian>(0)?;
+                }
             }
         }
 
@@ -187,8 +189,10 @@ impl StreamingQcow2Writer {
             }
             let block_entries_per_cluster = CLUSTER_SIZE / 2;
             let last_cluster_entries = self.total_clusters() % block_entries_per_cluster;
-            for _ in last_cluster_entries..block_entries_per_cluster {
-                writer.write_u16::<BigEndian>(0)?;
+            if last_cluster_entries > 0 {
+                for _ in last_cluster_entries..block_entries_per_cluster {
+                    writer.write_u16::<BigEndian>(0)?;
+                }
             }
         }
 
@@ -216,8 +220,10 @@ impl StreamingQcow2Writer {
             }
 
             let last_cluster_entries = l1_entries % l1_entries_per_cluster;
-            for _ in last_cluster_entries..l1_entries_per_cluster {
-                writer.write_u64::<BigEndian>(0)?;
+            if last_cluster_entries > 0 {
+                for _ in last_cluster_entries..l1_entries_per_cluster {
+                    writer.write_u64::<BigEndian>(0)?;
+                }
             }
         }
 
@@ -240,8 +246,10 @@ impl StreamingQcow2Writer {
 
             let l2_entries_per_cluster = CLUSTER_SIZE / 8;
             let last_cluster_entries = self.total_guest_clusters() % l2_entries_per_cluster;
-            for _ in last_cluster_entries..l2_entries_per_cluster {
-                writer.write_u64::<BigEndian>(0)?;
+            if last_cluster_entries > 0 {
+                for _ in last_cluster_entries..l2_entries_per_cluster {
+                    writer.write_u64::<BigEndian>(0)?;
+                }
             }
         }
 
