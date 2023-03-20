@@ -129,7 +129,9 @@ impl StreamingQcow2Writer {
         writer.write_u32::<BigEndian>(0)?;
 
         // L1 table size (number of entries)
-        writer.write_u32::<BigEndian>(self.l1_clusters)?;
+        let l2_entries_per_cluster = CLUSTER_SIZE / 8;
+        let l1_entries = self.total_clusters() / l2_entries_per_cluster;
+        writer.write_u32::<BigEndian>(l1_entries as u32)?;
 
         // L1 table offset
         writer.write_u64::<BigEndian>(self.l1_offset)?;
