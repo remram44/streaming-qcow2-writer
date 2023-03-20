@@ -48,8 +48,8 @@ impl StreamingQcow2Writer {
         }
 
         // Compute the number of L2 tables required
-        let l2_entries = data_clusters.len() as u64;
-        let l2_tables = divide_and_round_up(l2_entries * 8, CLUSTER_SIZE);
+        let guest_clusters = divide_and_round_up(input_size, CLUSTER_SIZE);
+        let l2_tables = divide_and_round_up(guest_clusters * 8, CLUSTER_SIZE);
 
         // Compute the size of the L1 table in clusters
         let l1_clusters = divide_and_round_up(l2_tables * 8, CLUSTER_SIZE);
@@ -105,6 +105,10 @@ impl StreamingQcow2Writer {
         CLUSTER_SIZE * self.total_clusters()
     }
 
+    pub fn total_guest_clusters(&self) -> u64 {
+        divide_and_round_up(self.input_size, CLUSTER_SIZE)
+    }
+
     pub fn write_header<W: Write>(&self, mut writer: W) -> std::io::Result<()> {
         // Magic
         writer.write_all(b"QFI\xFB")?;
@@ -130,7 +134,7 @@ impl StreamingQcow2Writer {
 
         // L1 table size (number of entries)
         let l2_entries_per_cluster = CLUSTER_SIZE / 8;
-        let l1_entries = self.total_clusters() / l2_entries_per_cluster;
+        let l1_entries = self.total_guest_clusters() / l2_entries_per_cluster;
         writer.write_u32::<BigEndian>(l1_entries as u32)?;
 
         // L1 table offset
@@ -201,7 +205,7 @@ impl StreamingQcow2Writer {
         // L1 table
         {
             let l1_entries_per_cluster = CLUSTER_SIZE / 8;
-            let l1_entries = divide_and_round_up(self.data_clusters.len() as u64, l1_entries_per_cluster);
+            let l1_entries = divide_and_round_up(self.total_guest_clusters(), l1_entries_per_cluster);
             for entry in 0..l1_entries {
                 let offset =
                     self.l1_offset
@@ -219,7 +223,7 @@ impl StreamingQcow2Writer {
 
         // L2 table
         {
-            for guest_cluster in 0..self.total_clusters() {
+            for guest_cluster in 0..self.total_guest_clusters() {
                 let l2_entry = match mapping.get(&guest_cluster) {
                     None => {
                         0
@@ -235,7 +239,7 @@ impl StreamingQcow2Writer {
             }
 
             let l2_entries_per_cluster = CLUSTER_SIZE / 8;
-            let last_cluster_entries = self.total_clusters() % l2_entries_per_cluster;
+            let last_cluster_entries = self.total_guest_clusters() % l2_entries_per_cluster;
             for _ in last_cluster_entries..l2_entries_per_cluster {
                 writer.write_u64::<BigEndian>(0)?;
             }
