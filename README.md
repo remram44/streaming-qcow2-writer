@@ -19,6 +19,7 @@ $ rbd device unmap /dev/rbd0
 * Writes QCOW files version 2.
 * Uses the standard 65536-byte cluster size.
 * No deduplication or skipping of zero blocks (the layout has to be computed ahead of time, we can't decide to write a smaller file after that). Let your backup system handle it, or sparsify your input layout first.
+* No compression, so deduplication will work. On the flip side, the "restored" file will be bigger.
 * Can read from either a regular file or a block device.
 * Writes output file to stdout.
 * Portable, although I don't know how you'd get a block device on Windows.
