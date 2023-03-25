@@ -1,6 +1,6 @@
 # Streaming QCOW2 image writer
 
-This is a tool that can write a QCOW2 image file in a streaming fashion. It can read a raw file and write a QCOW2 file, and contrary to `qemu-img convert`, it will not attempt to seek in the output.
+This is a tool that can write a QCOW2 image file in a streaming fashion. It can read a raw file or device and write a QCOW2 file, and contrary to `qemu-img convert`, it will not attempt to seek in the output.
 
 Optionally it can consume a layout file in JSON format indicating which parts of the input file should be read; the other parts of the image will be assumed to be all zero and won't take space in the output.
 
