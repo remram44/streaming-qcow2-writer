@@ -1,11 +1,14 @@
 mod qcow2;
+mod sparsify;
+mod utils;
 
 use std::ops::Range;
 use std::path::Path;
 
 use qcow2::StreamingQcow2Writer;
+use sparsify::sparsify_layout;
 
-const USAGE: &'static str = "Usage: streaming-qcow2-writer input.img [layout.json] > output.qcow2";
+const USAGE: &'static str = "Usage: streaming-qcow2-writer [--sparsify] input.img [layout.json] > output.qcow2";
 
 #[cfg(unix)]
 const BLKGETSIZE64_CODE: u8 = 0x12; // Defined in linux/fs.h
@@ -48,11 +51,18 @@ fn get_file_size(file: &std::fs::File) -> std::io::Result<u64> {
 
 fn main() {
     // Read command-line arguments
-    let mut args = std::env::args_os();
+    let mut args = std::env::args_os().peekable();
+    let mut sparsify = false;
     if let None = args.next() {
         eprintln!("Not enough arguments");
         eprintln!("{}", USAGE);
         std::process::exit(2);
+    }
+    if let Some(arg) = args.peek() {
+        if arg == "--sparsify" {
+            sparsify = true;
+            args.next().unwrap();
+        }
     }
     let Some(input) = args.next() else {
         eprintln!("Not enough arguments");
@@ -66,7 +76,7 @@ fn main() {
     }
 
     // Open input
-    let (input, input_size) = match std::fs::File::open(input)
+    let (mut input, input_size) = match std::fs::File::open(input)
         .and_then(|f| get_file_size(&f).map(|s| (f, s)))
     {
         Ok(o) => o,
@@ -78,7 +88,7 @@ fn main() {
     eprintln!("Input is {} bytes", input_size);
 
     // Read layout
-    let layout = match layout {
+    let mut layout = match layout {
         Some(arg) => match load_layout_file(Path::new(&arg)) {
             Ok(l) => l,
             Err(e) => {
@@ -88,6 +98,17 @@ fn main() {
         }
         None => vec![0..input_size],
     };
+
+    // Optional first pass: find holes
+    if sparsify {
+        layout = match sparsify_layout(&mut input, &layout) {
+            Ok(l) => l,
+            Err(e) => {
+                eprintln!("Error reading file: {}", e);
+                std::process::exit(1);
+            }
+        };
+    }
 
     // Initialize writer
     let qcow2_writer = StreamingQcow2Writer::new(input_size, layout.iter().cloned());

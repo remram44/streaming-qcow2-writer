@@ -3,6 +3,8 @@ use std::collections::HashMap;
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::ops::Range;
 
+use crate::utils::divide_and_round_up;
+
 const CLUSTER_SIZE: u64 = 65536;
 
 const REPORT_INTERVAL_BYTES: u64 = 500_000_000; // 500 MB
@@ -14,10 +16,6 @@ pub struct StreamingQcow2Writer {
     refcount_table_clusters: u32,
     first_data_cluster: u64,
     data_clusters: Vec<u64>,
-}
-
-fn divide_and_round_up(a: u64, b: u64) -> u64 {
-    (a + b - 1) / b
 }
 
 impl StreamingQcow2Writer {
@@ -32,7 +30,7 @@ impl StreamingQcow2Writer {
 
             if let Some(last_cluster) = last_cluster {
                 if from_cluster < last_cluster {
-                    panic!("Data clusters are not sorted");
+                    panic!("Layout is not sorted");
                 } else if from_cluster == last_cluster {
                     // It is possible for the start of this range to fall in
                     // the same cluster where the last range ended
