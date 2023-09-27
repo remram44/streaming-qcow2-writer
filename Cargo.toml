@@ -2,6 +2,7 @@
 name = "streaming-qcow2-writer"
 version = "0.1.0"
 edition = "2021"
+license = "MIT"
 
 [dependencies]
 byteorder = "1.4"
